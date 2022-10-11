@@ -1,6 +1,13 @@
 @file:Suppress("unused", "OPT_IN_USAGE")
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.NonCancellable.invokeOnCompletion
+
+// Тут показывается что CEH обрабатывается только в launch, в async он бесполезен
+// https://kotlinlang.org/docs/exception-handling.html#coroutineexceptionhandler
+val handler = CoroutineExceptionHandler { _, exception ->
+    println("CoroutineExceptionHandler $exception " + exception.suppressed.contentToString())
+}
 
 //fun main() = fun1()
 fun fun1() = runBlocking {
@@ -46,6 +53,33 @@ fun fun2() = runBlocking {
     println("After await")
 }
 
+//fun main() = fun32()
+fun fun32() = runBlocking {
+    Thread.currentThread().uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { p0, p1 ->
+        println("!!!!!!!! Crash !!!!!!!!")
+        println(p1)
+    }
+
+    supervisorScope {
+//        coroutineScope {
+//                val launch = launch(handler) {
+        val launch = launch() {
+//        val launch = async {
+            //        val launch = async(handler) {
+            throw RuntimeException()
+        }
+
+        println("Before inner join")
+        //        joinAll(launch)
+        println("Before await join")
+//        awaitAll(launch)
+        println("After inner join")
+    }
+    delay(300)
+    println("After join")
+}
+
+
 // fun main() = fun3()
 fun fun3() = runBlocking {
     // Пример показывающий как отменять корутины
@@ -70,9 +104,6 @@ fun fun3() = runBlocking {
 //fun main() = fun4()
 fun fun4() = runBlocking {
     // Как сделать код который отработает когда отменят корутину
-    val handler = CoroutineExceptionHandler { _, exception ->
-        println("CoroutineExceptionHandler got $exception")
-    }
     val job = GlobalScope.launch(handler) {
         launch {
             try {
@@ -97,9 +128,6 @@ fun fun4() = runBlocking {
 //fun main() = fun5()
 fun fun5() = runBlocking {
     // Показывается что собираются все exception которые бросались после того как отменилась корутина
-    val handler = CoroutineExceptionHandler { _, exception ->
-        println("CoroutineExceptionHandler got $exception with suppressed ${exception.suppressed.contentToString()}")
-    }
     val job = GlobalScope.launch(handler) {
         launch {
             try {
@@ -127,9 +155,6 @@ fun fun5() = runBlocking {
 //fun main() = fun6()
 fun fun6() = runBlocking {
     // Показывает что корутины отменяются рекурсивно и что в catch приходит не тот exception который будет с CEH
-    val handler = CoroutineExceptionHandler { _, exception ->
-        println("CoroutineExceptionHandler got $exception")
-    }
     val job = GlobalScope.launch(handler) {
         val inner = launch { // all this stack of coroutines will get cancelled
             launch {
@@ -155,9 +180,7 @@ fun fun7() = runBlocking {
     val supervisor = SupervisorJob()
     with(CoroutineScope(coroutineContext + supervisor)) {
         // launch the first child -- its exception is ignored for this example (don't do this in practice!)
-        val firstChild = launch(CoroutineExceptionHandler { _, throwable ->
-            println(throwable)
-        }) {
+        val firstChild = launch(handler) {
             println("The first child is failing")
             throw AssertionError("The first child is cancelled")
         }
@@ -207,9 +230,6 @@ fun fun8() = runBlocking {
 //fun main() = fun9()
 fun fun9() = runBlocking {
     // Показано что в SupervisorScope не зависит от exception в child
-    val handler = CoroutineExceptionHandler { _, exception ->
-        println("CoroutineExceptionHandler got $exception")
-    }
     supervisorScope {
         val child = launch(handler) {
             println("The child throws an exception")
@@ -224,9 +244,6 @@ fun fun9() = runBlocking {
 fun fun10() = runBlocking {
     // Показано что CEH в async безсполезен
     // Что async в supervisorScope не сообщаем ему про exception у себя
-    val handler = CoroutineExceptionHandler { _, exception ->
-        println("CoroutineExceptionHandler got $exception")
-    }
     supervisorScope {
         val r1: Deferred<String> = async(CoroutineName("_2") + handler) { error("Unexpected error") }
         val r2: Deferred<String> = async(CoroutineName("_3")) { delay(1000); "success" }
@@ -244,9 +261,6 @@ fun fun10() = runBlocking {
 //fun main() = fun11()
 fun fun11() = runBlocking {
     // Тут показано что coroutineScope бросает исключение которое было в child, но при этом завершает весь код который в scope
-    val handler = CoroutineExceptionHandler { _, exception ->
-        println("CoroutineExceptionHandler got $exception")
-    }
     coroutineScope {
         val r1: Deferred<String> = async(CoroutineName("_2") + handler) { error("Unexpected error") }
         val r2: Deferred<String> = async(CoroutineName("_3")) { delay(1000); "success" }
@@ -279,6 +293,7 @@ fun fun12() = runBlocking {
         joinAll(launch, launch1)
     }
     joinAll(job)
+    println("We are here")
     Unit
 }
 
@@ -458,9 +473,60 @@ fun fun20() = runBlocking {
     Unit
 }
 
+//fun main() = fun21()
+fun fun21(): Unit = runBlocking {
+    // Еще один пример из книги в котором говорится про SupervisorJob в launch
 
-fun main() = fun21()
-fun fun21() = runBlocking {
+    // Don't do that, SupervisorJob with one children
+    // and no parent works similar to just Job
+    launch(SupervisorJob()) { // 1
+        launch {
+            delay(1000)
+            throw Error("Some error")
+        }
+        launch {
+            delay(2000)
+            println("Will not be printed")
+        }
+    }
+    launch {
+        delay(3000)
+        println("We are here")
+    }
+    delay(3000)
+}
+
+//fun main() = fun22()
+fun fun22(): Unit = runBlocking {
+    // Пример как будет проходить отмена корутин если использовать отдельный SupervisorJob()
+
+//    val launch = launch(SupervisorJob()) {
+    val launch = launch() {
+        launch {
+            delay(1000)
+            println("First launch")
+        }.invokeOnCompletion {
+            println("First launch end with $it")
+        }
+        launch {
+            delay(2000)
+            println("Second launch")
+        }.invokeOnCompletion {
+            println("Second launch end with $it")
+        }
+    }
+    launch {
+        delay(3000)
+        println("Main launch")
+    }.invokeOnCompletion {
+        println("Main launch end with $it")
+    }
+    cancel()
+}
+
+
+//fun main() = fun23()
+fun fun23() = runBlocking {
     /**
     CEH вызывается когда рутовая корутина скоупа умерла
      */
@@ -509,4 +575,74 @@ fun fun21() = runBlocking {
 
 fun println(value: Any?) {
     kotlin.io.println(Thread.currentThread().toString() + " " + value)
+}
+
+//fun main() = runBlocking {
+//
+//    supervisorScope {
+//
+//        val launch = launch {
+//            try {
+//                supervisorScope {
+//                    delay(1000)
+//                }
+//            } catch (e: Exception) {
+//                println("adasd" + e)
+//            }
+//
+//        }
+//        delay(500)
+//        launch.cancel()
+//
+//    }
+//
+//    try {
+//        coroutineScope {
+//            val async = async {
+//                throw RuntimeException()
+//            }
+//            delay(10000)
+//        }
+//    } catch (e: Exception) {
+//        println(e)
+//    }
+//    delay(400)
+//    println("We ")
+//}
+
+
+cdfun main(): Unit = runBlocking {
+
+    Thread.currentThread().uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { p0, p1 ->
+        println("!!!!!!!! Crash !!!!!!!!")
+        println(p1)
+    }
+
+//    val context = Job()
+//    val context = SupervisorJob()
+//    val coroutineScope = coroutineScope {
+    val coroutineScope = supervisorScope {
+        val launch = launch {
+            launch {
+//                launch() {
+//                launch(handler) {
+                val job = Job()
+                launch(handler + job) {
+//                supervisorScope {
+//                launch(Job()) {
+//                launch(context ) {
+//                    launch(coroutineExceptionHandler) {
+                        async { throw RuntimeException() }
+                        launch { delay(10000) }.invokeOnCompletion { println(it) }
+//                    }
+                }.join()
+            }
+        }
+        invokeOnCompletion { println("asdas $it") }
+        launch
+    }
+
+    coroutineScope.join()
+//    context.join()
+    println("we are")
 }
