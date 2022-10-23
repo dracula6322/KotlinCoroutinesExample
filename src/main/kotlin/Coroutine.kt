@@ -1,34 +1,38 @@
 import kotlinx.coroutines.*
+import rx.Observable
+import rx.Subscriber
+import rx.schedulers.Schedulers
+import java.util.concurrent.TimeUnit
+import kotlin.random.Random
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
-//fun main() = Test().fun1()
-//fun main() = Test().fun2()
-//fun main() = Test().fun3()
-//fun main() = Test().fun4()
-//fun main() = Test().fun5()
-//fun main() = Test().fun6()
-//fun main() = Test().fun7()
-//fun main() = Test().fun8()
-//fun main() = Test().fun9()
-//fun main() = Test().fun10()
-//fun main() = Test().fun11()
-//fun main() = Test().fun12()
-//fun main() = Test().fun13()
-//fun main() = Test().fun14()
-//fun main() = Test().fun15()
-//fun main() = Test().fun16()
-//fun main() = Test().fun17()
-//fun main() = Test().fun18()
+//fun main() = Main().fun1()
+//fun main() = Main().fun2()
+//fun main() = Main().fun3()
+//fun main() = Main().fun4()
+//fun main() = Main().fun5()
+//fun main() = Main().fun6()
+//fun main() = Main().fun7()
+//fun main() = Main().fun8()
+//fun main() = Main().fun9()
+//fun main() = Main().fun10()
+//fun main() = Main().fun11()
+//fun main() = Main().fun12()
+//fun main() = Main().fun13()
+//fun main() = Main().fun14()
+//fun main() = Main().fun15()
+//fun main() = Main().fun16()
+fun main() = Main().fun17()
+//fun main() = Main().fun18()
 //fun main() = Main().fun19()
 //fun main() = Main().fun20()
 //fun main() = Main().fun21()
 //fun main() = Main().fun22()
-fun main() = Main().fun23()
 //fun main() = Main().fun24()
 //fun main() = Main().fun25()
 
-class Main {
+private class Main {
 
     // CEH обрабатывается только в launch, в async он бесполезен
     // https://kotlinlang.org/docs/exception-handling.html#coroutineexceptionhandler
@@ -405,28 +409,25 @@ class Main {
     fun fun18() = runBlocking {
         val scope = CoroutineScope(Job())
         try {
-            val first = scope.launch {
-                delay(5000)
-            }
+            val first = scope.launch { delay(5000) }
             first.invokeOnCompletion {
                 println("invokeOnCompletion first $it " + it?.suppressed.contentToString())
             }
 
             val second = scope.launch(handler) {
                 launch { throw Exception("Failed coroutine") }
-                launch {
-                    delay(5000)
-                }.invokeOnCompletion {
-                    println("invokeOnCompletion long launch  $it " + it?.suppressed.contentToString())
-                }
+                launch { delay(5000) }
+                    .invokeOnCompletion {
+                        println("invokeOnCompletion long launch  $it " + it?.suppressed.contentToString())
+                    }
                 println("Before yield")
                 yield()
                 println("Not will be printed")
             }
-            println("Before join")
+            println("Before joinAll")
             joinAll(second, first)
         } catch (exception: Throwable) {
-            println("Catch $exception " + exception.suppressed.contentToString())
+            // Not show
         }
         launch { println("Will be printed") }.join()
         println("End runBlocking")
@@ -442,7 +443,6 @@ class Main {
             }
             joinAll(launch)
         }
-        delay(300)
         launch { println("Will be printed") }.join()
         println("End runBlocking")
     }
@@ -458,67 +458,32 @@ class Main {
             println("Second coroutine will be printed")
         }
         job.join() // Зависнет пока кто-то не отменит job
-        launch { println("Will be printed") }.join()
-        println("End runBlocking")
+        launch { println("(Not show) Will be printed") }.join()
+        println("(Not show) End runBlocking")
     }
 
     fun fun21() = runBlocking {
         // В какой очереди выполняются корутины
+        // При дефолтном значении CoroutineStart.DEFAULT корутина не будет выполнятся пока не дойдет до первой suspend фукнкции
+        // При использовании CoroutineStart.UNDISPATCHED корутина будет выполнятся сразу
         // https://stackoverflow.com/a/59152712
         launch { println("1") }
+        launch(start = CoroutineStart.DEFAULT) { println("2") }
+        launch(start = CoroutineStart.UNDISPATCHED) { println("3") }
+        launch { println("4") }.join()
+        async { println("5") }
         coroutineScope {
-            launch { println("2") }
-            println("3")
+            launch { println("6") }
+            println("7")
         }
-        coroutineScope {
-            launch { println("4") }
-            println("5")
-        }
-        launch { println("6") }
-        for (i in 7..100) {
-            println(i.toString())
-        }
-        println("101")
+        launch { println("8") }
+        println("9")
 
-//        3
-//        1
-//        2
-//        5
-//        4
-//        7
-//        8
-//        9
-//        10
-//        ...
-//        99
-//        100
-//        101
-//        6
-    }
-
-    fun fun22() = runBlocking {
-        // В какой очереди выполняются корутины
-        // https://stackoverflow.com/a/59152712
-        launch { println("1") }
-        launch { println("2") }
-        launch { println("3") }
-        for (i in 4..100) {
-            println(i.toString())
-        }
-        println("101")
-
-//        4
-//        5
-//        6
-//        ...
-//        101
-//        1
-//        2
-//        3
+        // 3, 1, 2, 4, 7, 5, 6, 9, 8
     }
 
     @OptIn(ExperimentalCoroutinesApi::class, ExperimentalTime::class)
-    fun fun23() {
+    fun fun22() {
         // Показывает в чем разница между runBlocking и coroutineScope в плане блокирования потока выполнения
         // Что бы был результат нужно раскоментить нужный участок кода
         // https://stackoverflow.com/a/53536713
@@ -551,21 +516,21 @@ class Main {
         }
     }
 
-    fun fun24() = runBlocking {
+    fun fun23() = runBlocking {
         // Пример предложения замены async на withContext
         async(Dispatchers.Main) { "42" }.await()
         launch { println("Will be printed") }.join()
         println("End runBlocking")
     }
 
-    fun fun25() = runBlocking {
+    fun fun24() = runBlocking {
         // Пример есть ли разница между launch() {}.join и withContext
         launch(handler + Job()) {// Если в launch передать Job(), то он не будет распространять ошибку
             throw RuntimeException()
         }.join()
 
         try {
-            withContext(handler + Job() + Dispatchers.IO) {
+            withContext(handler + Job()) {
                 launch {
                     val coroutineExceptionHandler = coroutineContext[CoroutineExceptionHandler]
                     println(coroutineExceptionHandler) // Не null, handle сюда приходит
@@ -577,7 +542,7 @@ class Main {
             // Exception будет распространен хотя есть Job()
         }
 
-        launch { println("Will be printed") }.join()
-        println("End runBlocking")
+        launch { println("(Not show) Will be printed") }.join()
+        println("(Not show) End runBlocking")
     }
 }
