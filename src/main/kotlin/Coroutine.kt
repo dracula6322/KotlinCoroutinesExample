@@ -1,9 +1,4 @@
 import kotlinx.coroutines.*
-import rx.Observable
-import rx.Subscriber
-import rx.schedulers.Schedulers
-import java.util.concurrent.TimeUnit
-import kotlin.random.Random
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
@@ -23,12 +18,13 @@ import kotlin.time.measureTime
 //fun main() = Main().fun14()
 //fun main() = Main().fun15()
 //fun main() = Main().fun16()
-fun main() = Main().fun17()
+//fun main() = Main().fun17()
 //fun main() = Main().fun18()
 //fun main() = Main().fun19()
 //fun main() = Main().fun20()
 //fun main() = Main().fun21()
 //fun main() = Main().fun22()
+fun main() = Main().fun23()
 //fun main() = Main().fun24()
 //fun main() = Main().fun25()
 
@@ -104,7 +100,7 @@ private class Main {
 
     fun fun4() = runBlocking {
         // Как сделать код который отработает когда отменят корутину
-        val job = GlobalScope.launch(handler) {
+        GlobalScope.launch(handler) {
             launch {
                 try {
                     delay(Long.MAX_VALUE)
@@ -121,8 +117,7 @@ private class Main {
                 println("Second child throws an exception")
                 throw ArithmeticException()
             }
-        }
-        job.join()
+        }.join()
     }
 
     fun fun5() = runBlocking {
@@ -149,11 +144,12 @@ private class Main {
             delay(Long.MAX_VALUE)
         }
         job.join()
+        // CoroutineExceptionHandler java.lang.IllegalAccessError [java.lang.ArithmeticException, java.lang.IndexOutOfBoundsException]
     }
 
     fun fun6() = runBlocking {
         // Показывает что корутины отменяются рекурсивно и что в catch приходит не тот exception который будет с CEH
-        val job = GlobalScope.launch(handler) {
+        GlobalScope.launch(handler) {
             val inner = launch {
                 launch {
                     launch {
@@ -167,8 +163,9 @@ private class Main {
                 println(exception.toString() + " " + exception.suppressed.contentToString())
                 throw exception
             }
-        }
-        job.join()
+        }.join()
+        // kotlinx.coroutines.JobCancellationException: StandaloneCoroutine is cancelling; job=StandaloneCoroutine{Cancelling}@bb3d20b []
+        // CoroutineExceptionHandler java.lang.ArithmeticException []
     }
 
     fun fun7() = runBlocking {
@@ -199,7 +196,7 @@ private class Main {
     }
 
     fun fun8() = runBlocking {
-        // Тут показывается что supervisorScope брасает exception если он есть в теле scope, а не в корутине
+        // Тут показывается что supervisorScope бросает exception если он есть в теле scope, а не в корутине
         try {
             supervisorScope {
                 launch {
@@ -218,6 +215,10 @@ private class Main {
         } catch (e: AssertionError) {
             println("Caught an assertion error")
         }
+        // The child is sleeping
+        // Throwing an exception from the scope
+        // The child is cancelled
+        // Caught an assertion error
     }
 
     fun fun9() = runBlocking {
@@ -435,7 +436,6 @@ private class Main {
 
     fun fun19() = runBlocking {
         coroutineScope {
-            // Если убрать Job(), то runBlocking бросит сразу exception
             val launch = launch(Job()) { // Если убрать Job(), то runBlocking бросит сразу exception
                 launch(handler) { // Этот handle не будет использоваться, нужно передать выше
                     throw RuntimeException()
