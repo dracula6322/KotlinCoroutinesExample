@@ -24,24 +24,24 @@ import kotlin.time.measureTime
 //fun main() = Main().fun20()
 //fun main() = Main().fun21()
 //fun main() = Main().fun22()
-fun main() = Main().fun23()
+//fun main() = Main().fun23()
 //fun main() = Main().fun24()
-//fun main() = Main().fun25()
+fun main() = Main().fun25()
 
 private class Main {
 
     // CEH обрабатывается только в launch, в async он бесполезен
     // https://kotlinlang.org/docs/exception-handling.html#coroutineexceptionhandler
-    private val handler = CoroutineExceptionHandler { _, exception ->
-        println("CoroutineExceptionHandler $exception " + exception.suppressed.contentToString())
+    private val handler = CoroutineExceptionHandler { _, throwable ->
+        println("CoroutineExceptionHandler $throwable " + throwable.suppressed.contentToString())
     }
 
     private fun println(value: Any?) = kotlin.io.println(Thread.currentThread().toString() + " " + value)
 
     init {
-        Thread.currentThread().uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { _, exception ->
+        Thread.currentThread().uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { _, throwable ->
             println("!!!!!!!! Android Crash !!!!!!!!")
-            println(exception.toString() + " " + exception.suppressed.contentToString())
+            println(throwable.toString() + " " + throwable.suppressed.contentToString())
         }
     }
 
@@ -65,9 +65,9 @@ private class Main {
     }
 
     fun fun2() = runBlocking {
-        val job = GlobalScope.launch(handler) { throw AssertionError() }
+        val job = GlobalScope.launch(handler) { throw AssertionError() } // Напишет в handler
         println("After launch")
-        val deferred = GlobalScope.async(handler) { throw ArithmeticException() }
+        val deferred = GlobalScope.async(handler) { throw ArithmeticException() } // Не напишет в handler
         println("After defered")
         joinAll(job, deferred)
         println("After joinAll")
@@ -436,7 +436,7 @@ private class Main {
 
     fun fun19() = runBlocking {
         coroutineScope {
-            val launch = launch(Job()) { // Если убрать Job(), то runBlocking бросит сразу exception
+            val launch = launch(Job() + handler) { // Если убрать Job(), то runBlocking бросит сразу exception
                 launch(handler) { // Этот handle не будет использоваться, нужно передать выше
                     throw RuntimeException()
                 }
@@ -529,20 +529,92 @@ private class Main {
             throw RuntimeException()
         }.join()
 
+        val blockingJob = coroutineContext.job
+        println("blockingJob $blockingJob") // blockingJob BlockingCoroutine{Active}@4ca8195f
+        val newJob = Job()
+        println("newJob $newJob") // newJob JobImpl{Active}@65e579dc
         try {
-            withContext(handler + Job()) {
+            withContext(handler + newJob) {
+                val withContextJob = coroutineContext.job
+                println("withContextJob $withContextJob") // withContextJob UndispatchedCoroutine{Active}@33e5ccce
                 launch {
+                    val launchJob = coroutineContext.job
+                    println("launchJob $launchJob") // launchJob StandaloneCoroutine{Active}@270421f5
+                    println(
+                        "blockingJob.children " + blockingJob.children.toList().toString()
+                    ) // blockingJob.children []
+                    println(
+                        "newJob.children " + newJob.children.toList().toString()
+                    ) // newJob.children [UndispatchedCoroutine{Active}@33e5ccce]
+                    println(
+                        "withContextJob.children " + withContextJob.children.toList().toString()
+                    ) // withContextJob.children [StandaloneCoroutine{Active}@270421f5]
                     val coroutineExceptionHandler = coroutineContext[CoroutineExceptionHandler]
                     println(coroutineExceptionHandler) // Не null, handle сюда приходит
-                    throw IllegalAccessError()
+                    throw IllegalStateException()
                 }.join()
             }
-        } catch (exception: Exception) {
-            // Not show
-            // Exception будет распространен хотя есть Job()
+        } catch (throwable: Throwable) {
+            println(throwable) // java.lang.IllegalStateException
         }
 
-        launch { println("(Not show) Will be printed") }.join()
-        println("(Not show) End runBlocking")
+        // Судя по тому что newJob не отменена, значит что withContext, не пробрасывает отмену, а отменяет только свою job
+        println(newJob.isCancelled) // false
+        println(newJob.isActive)    // true
+        println(newJob.isCompleted) // false
+
+        launch { println("Will be printed") }.join()
+        println("End runBlocking")
+    }
+
+    fun fun25() = runBlocking {
+        // Информация из документации почему runBlocking, withContext, withTimeout, coroutineScope
+        // не распространяют исключение, а выбрасывают его
+        /**
+         * Returns `true` for scoped coroutines.
+         * Scoped coroutine is a coroutine that is executed sequentially within the enclosing scope without any concurrency.
+         * Scoped coroutines always handle any exception happened within -- they just rethrow it to the enclosing scope.
+         * Examples of scoped coroutines are `coroutineScope`, `withTimeout` and `runBlocking`.
+         */
+        //protected open val isScopedCoroutine: Boolean get() = false
+
+//            println(coroutineContext[Job]) // BlockingCoroutine
+//            launch { println(coroutineContext[Job]) } // StandaloneCoroutine
+//            async { println(coroutineContext[Job]) }.await() // DeferredCoroutine
+//            withContext(coroutineContext) { println(coroutineContext[Job]) } // UndispatchedCoroutine
+//            withContext(Dispatchers.IO) { println(coroutineContext[Job]) } // DispatchedCoroutine
+//            withTimeout(100) { println(coroutineContext[Job]) } // TimeoutCoroutine
+//            coroutineScope { println(coroutineContext[Job]) } // ScopeCoroutine
+//            supervisorScope { println(coroutineContext[Job]) } // SupervisorCoroutine
+//            CoroutineScope(Job()).launch { println(coroutineContext[Job]) } // JobImpl
+//            CoroutineScope(SupervisorJob()).launch { println(coroutineContext[Job]) } // SupervisorJobImpl
+
+        launch { println("Will be printed") }.join()
+        println("End runBlocking")
+
+        // 1) Если в теле корутины runBlocking, withContext, withTimeout, coroutineScope, supervisorScope: отменяется Job и бросается exception
+        // 2) Если у корутины launch родитель:
+        //    - launch(Job()) { throw RuntimeException() }              Ошибка уйдет в CEH или UEH и отменит Job
+        //    - launch(SupervisorJob()) { throw RuntimeException() }    Ошибка уйдет в CEH или UEH
+        //    - CoroutineScope(Job())                                   Ошибка уйдет в CEH или UEH и отменит Job
+        //    - CoroutineScope(SupervisorJob())                         Ошибка уйдет в CEH или UEH
+        //    - runBlocking, withContext, withTimeout, coroutineScope   Сразу отменяется Job и бросается exception
+        //    - launch                                                  Сразу распространяется exception и отменяется Job
+        //    - async                                                   Сразу распространяется exception и отменяется Job
+        //    - supervisorScope                                         Ошибка уйдет в CEH или UEH
+
+        // 3) Если у корутины async родитель:
+        //    - async(Job()) { throw RuntimeException() }               Бросит ошибку в await и отменит Job
+        //    - async(SupervisorJob()) { throw RuntimeException() }     Бросит ошибку в await
+        //    - CoroutineScope(Job())                                   Бросит ошибку в await и отменит Job
+        //    - CoroutineScope(SupervisorJob())                         Бросит ошибку в await
+        //    - runBlocking, withContext, withTimeout, coroutineScope   Сразу отменяется Job и бросается exception
+        //    - launch                                                  Сразу распространяется exception и отменяется Job
+        //    - async                                                   Сразу распространяется exception и отменяется Job
+        //    - supervisorScope                                         Бросит ошибку в await
+
+        // Из выше указанного можно сделать следующие выводы
+        // - CEH в async нужен только для проброса его для детей, а сам по себе в обработке исключений async не использует CEH
+        // - Job в withContext нужен только для проброса его для детей и для отмены самого withContext, а сам по себе в обработке исключений withContext не смотрит на Job, а всегда выбрасывает исключение
     }
 }
