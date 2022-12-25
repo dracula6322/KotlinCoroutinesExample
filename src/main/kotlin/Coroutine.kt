@@ -604,9 +604,13 @@ private class Main {
 
         // *
         assert("1" == runCatching { coroutineScope { launch { throw IndexOutOfBoundsException("1") } } }.exceptionOrNull()!!.message)
+        assert("1" == runCatching { coroutineScope { async { throw IndexOutOfBoundsException("1") } } }.exceptionOrNull()!!.message)
         assert("1" == runCatching { withTimeout(10000) { launch { throw IndexOutOfBoundsException("1") } } }.exceptionOrNull()!!.message)
+        assert("1" == runCatching { withTimeout(10000) { async { throw IndexOutOfBoundsException("1") } } }.exceptionOrNull()!!.message)
         assert("1" == runCatching { withContext(coroutineContext) { launch { throw IndexOutOfBoundsException("1") } } }.exceptionOrNull()!!.message)
+        assert("1" == runCatching { withContext(coroutineContext) { async { throw IndexOutOfBoundsException("1") } } }.exceptionOrNull()!!.message)
         assert("1" == runCatching { runBlocking { launch { throw IndexOutOfBoundsException("1") } } }.exceptionOrNull()!!.message)
+        assert("1" == runCatching { runBlocking { async { throw IndexOutOfBoundsException("1") } } }.exceptionOrNull()!!.message)
 
         // **
         assert("1" == runCatching { coroutineScope { launch { launch { throw IndexOutOfBoundsException("1") } } } }.exceptionOrNull()!!.message)
