@@ -58,7 +58,7 @@ private class Main {
         }
         try {
             deferred.await()
-            println("Done")
+            println("Not show")
         } catch (e: ArithmeticException) {
             println("Caught ArithmeticException")
         }
@@ -71,10 +71,8 @@ private class Main {
         println("After defered")
         joinAll(job, deferred)
         println("After joinAll")
-        deferred.join()
-        println("After deferred join")
         deferred.await()
-        println("After await")
+        println("Not show")
     }
 
     fun fun3() = runBlocking {
@@ -99,7 +97,7 @@ private class Main {
     }
 
     fun fun4() = runBlocking {
-        // Как сделать код который отработает когда отменят корутину
+        // Код, который отработает когда отменят корутину
         GlobalScope.launch(handler) {
             launch {
                 try {
@@ -172,27 +170,28 @@ private class Main {
         // Показывается что SupervisorJob не отменяет корутину если ее child бросил exception
         // И что все задачи отменяются если отменить job которая передавалась при создании scope
         val supervisor = SupervisorJob()
-        with(CoroutineScope(supervisor)) {
-            val firstChild = launch(handler) {
-                println("The first child is failing")
-                throw AssertionError("The first child is cancelled")
-            }
-            firstChild.join()
-            val secondChild = launch {
-                firstChild.join()
-                println("The first child is cancelled: ${firstChild.isCancelled}, but the second one is still active")
-                try {
-                    delay(Long.MAX_VALUE)
-                } finally {
-                    // But cancellation of the supervisor is propagated
-                    println("The second child is cancelled because the supervisor was cancelled")
-                }
-            }
-            yield()
-            println("Cancelling the supervisor")
-            supervisor.cancelAndJoin()
-            secondChild.join()
+        val coroutineScope = CoroutineScope(supervisor)
+        val firstChild = coroutineScope.launch(handler) {
+            throw AssertionError("The first child is cancelled")
         }
+        firstChild.join()
+        val secondChild = coroutineScope.launch {
+            println("The first child is cancelled: ${firstChild.isCancelled}, but the second one is still active")
+            try {
+                delay(Long.MAX_VALUE)
+            } finally {
+                // But cancellation of the supervisor is propagated
+                println("The second child is cancelled because the supervisor was cancelled")
+            }
+        }
+        yield()
+        println("Cancelling the supervisor")
+        supervisor.cancelAndJoin()
+        secondChild.join()
+        // CoroutineExceptionHandler java.lang.AssertionError: The first child is cancelled []
+        // The first child is cancelled: true, but the second one is still active
+        // Cancelling the supervisor
+        // The second child is cancelled because the supervisor was cancelled
     }
 
     fun fun8() = runBlocking {
@@ -417,10 +416,9 @@ private class Main {
 
             val second = scope.launch(handler) {
                 launch { throw Exception("Failed coroutine") }
-                launch { delay(5000) }
-                    .invokeOnCompletion {
-                        println("invokeOnCompletion long launch  $it " + it?.suppressed.contentToString())
-                    }
+                launch { delay(5000) }.invokeOnCompletion {
+                    println("invokeOnCompletion long launch  $it " + it?.suppressed.contentToString())
+                }
                 println("Before yield")
                 yield()
                 println("Not will be printed")
@@ -455,7 +453,7 @@ private class Main {
         }
         launch(job) {
             delay(2000)
-            println("Second coroutine will be printed")
+            println("Will show")
         }
         job.join() // Зависнет пока кто-то не отменит job
         launch { println("(Not show) Will be printed") }.join()
@@ -464,8 +462,8 @@ private class Main {
 
     fun fun21() = runBlocking {
         // В какой очереди выполняются корутины
-        // При дефолтном значении CoroutineStart.DEFAULT корутина не будет выполнятся пока не дойдет до первой suspend фукнкции
-        // При использовании CoroutineStart.UNDISPATCHED корутина будет выполнятся сразу
+        // При дефолтном значении CoroutineStart.DEFAULT корутина будет выполняться когда дойдет до первой suspend фукнкции
+        // При использовании CoroutineStart.UNDISPATCHED корутина выполняется сразу
         // https://stackoverflow.com/a/59152712
         launch { println("1") }
         launch(start = CoroutineStart.DEFAULT) { println("2") }
@@ -517,10 +515,9 @@ private class Main {
     }
 
     fun fun23() = runBlocking {
-        // Пример предложения замены async на withContext
-        async(Dispatchers.Main) { "42" }.await()
-        launch { println("Will be printed") }.join()
-        println("End runBlocking")
+//         async(Dispatchers.Main) { "42" }.await()
+//         Строку выше предлагается заменить на такую
+//         withContext(Dispatchers.Main) { "42" }
     }
 
     fun fun24() = runBlocking {
@@ -578,43 +575,111 @@ private class Main {
          */
         //protected open val isScopedCoroutine: Boolean get() = false
 
-//            println(coroutineContext[Job]) // BlockingCoroutine
-//            launch { println(coroutineContext[Job]) } // StandaloneCoroutine
-//            async { println(coroutineContext[Job]) }.await() // DeferredCoroutine
-//            withContext(coroutineContext) { println(coroutineContext[Job]) } // UndispatchedCoroutine
-//            withContext(Dispatchers.IO) { println(coroutineContext[Job]) } // DispatchedCoroutine
-//            withTimeout(100) { println(coroutineContext[Job]) } // TimeoutCoroutine
-//            coroutineScope { println(coroutineContext[Job]) } // ScopeCoroutine
-//            supervisorScope { println(coroutineContext[Job]) } // SupervisorCoroutine
-//            CoroutineScope(Job()).launch { println(coroutineContext[Job]) } // JobImpl
-//            CoroutineScope(SupervisorJob()).launch { println(coroutineContext[Job]) } // SupervisorJobImpl
+        // println(coroutineContext[Job]) // BlockingCoroutine
+        // launch { println(coroutineContext[Job]) } // StandaloneCoroutine
+        // async { println(coroutineContext[Job]) }.await() // DeferredCoroutine
+        // withContext(coroutineContext) { println(coroutineContext[Job]) } // UndispatchedCoroutine
+        // withContext(Dispatchers.IO) { println(coroutineContext[Job]) } // DispatchedCoroutine
+        // withTimeout(100) { println(coroutineContext[Job]) } // TimeoutCoroutine
+        // coroutineScope { println(coroutineContext[Job]) } // ScopeCoroutine
+        // supervisorScope { println(coroutineContext[Job]) } // SupervisorCoroutine
+        // CoroutineScope(Job()).launch { println(coroutineContext[Job]) } // JobImpl
+        // CoroutineScope(SupervisorJob()).launch { println(coroutineContext[Job]) } // SupervisorJobImpl
+
+        // coroutineScope, withTimeout  | async                     | async(Job()) ***      | launch(Job()) ****     |
+        // withContext, runBlocking *   | launch **                 |                       |                        |
+        //                              |                           |                       |                        |
+        // Отменяется scope             | Распространяется ошибка   | Отменит async,        | Отменит scope и CEH|UEH|
+        // и бросится exception         | и отменит scope           | ошибку бросит в .await|                        |
+        //                              |                           |                       |                        |
+
+        //        | CoroutineScope(Job()) ***** | supervisorScope
+        //        |                             | CoroutineScope(SupervisorJob()) ******
+        //        |                             |
+        // launch | Отменит scope и CEH|UEH     | CEH|UEH
+        // --------------------------------------------------------------------------------------
+        // async  | Отменит scope, ошибку       | Ошибку бросит в .await
+        //        | бросит в .await           |
+        //        |                             |
+
+        // *
+        assert("1" == runCatching { coroutineScope { launch { throw IndexOutOfBoundsException("1") } } }.exceptionOrNull()!!.message)
+        assert("1" == runCatching { withTimeout(10000) { launch { throw IndexOutOfBoundsException("1") } } }.exceptionOrNull()!!.message)
+        assert("1" == runCatching { withContext(coroutineContext) { launch { throw IndexOutOfBoundsException("1") } } }.exceptionOrNull()!!.message)
+        assert("1" == runCatching { runBlocking { launch { throw IndexOutOfBoundsException("1") } } }.exceptionOrNull()!!.message)
+
+        // **
+        assert("1" == runCatching { coroutineScope { launch { launch { throw IndexOutOfBoundsException("1") } } } }.exceptionOrNull()!!.message)
+        assert("1" == runCatching { coroutineScope { launch { async { throw IndexOutOfBoundsException("1") } } } }.exceptionOrNull()!!.message)
+        assert("1" == runCatching { coroutineScope { async { launch { throw IndexOutOfBoundsException("1") } } } }.exceptionOrNull()!!.message)
+        assert("1" == runCatching { coroutineScope { async { async { throw IndexOutOfBoundsException("1") } } } }.exceptionOrNull()!!.message)
+
+        // ***
+        assert(null == runCatching { coroutineScope { async(Job()) { launch { throw IndexOutOfBoundsException("1") } } } }.exceptionOrNull())
+        assert("1" == runCatching { coroutineScope { async(Job()) { launch { throw IndexOutOfBoundsException("1") } }.await() } }.exceptionOrNull()!!.message)
+        assert(null == runCatching { coroutineScope { async(Job()) { async { throw IndexOutOfBoundsException("1") } } } }.exceptionOrNull())
+        assert("1" == runCatching { coroutineScope { async(Job()) { async { throw IndexOutOfBoundsException("1") } }.await() } }.exceptionOrNull()!!.message)
+
+        // ****
+        var localMessage = ""
+        val localHandler = CoroutineExceptionHandler { _, throwable ->
+            localMessage = throwable.message.toString()
+        }
+        with(Job()) {
+            assert(null == runCatching { launch(this + localHandler) { launch { throw IndexOutOfBoundsException("13") } }.join() }.exceptionOrNull())
+            assert(this.isCancelled)
+            assert(localMessage == "13")
+        }
+        with(Job()) {
+            assert(null == runCatching { launch(this + localHandler) { async { throw IndexOutOfBoundsException("14") } }.join() }.exceptionOrNull())
+            assert(this.isCancelled)
+            assert(localMessage == "14")
+        }
+
+        // *****
+        with(CoroutineScope(Job() + localHandler)) {
+            this.launch { throw IndexOutOfBoundsException("11") }.join()
+            assert(localMessage == "11")
+            assert(!this.isActive)
+        }
+        with(CoroutineScope(Job() + localHandler)) {
+            val async = this.async { throw IndexOutOfBoundsException("12") }
+            async.join()
+            assert(!this.isActive)
+            assert(localMessage != "12")
+            assert("12" == runCatching { async.await() }.exceptionOrNull()!!.message)
+            assert(localMessage != "12")
+        }
+
+        // ******
+        assert(null == runCatching { supervisorScope { launch(localHandler) { throw IndexOutOfBoundsException("21") } } }.exceptionOrNull())
+        assert(localMessage == "21")
+        assert(null == runCatching { supervisorScope { async(localHandler) { throw IndexOutOfBoundsException("22") } } }.exceptionOrNull())
+        assert(localMessage != "22")
+        assert("23" == runCatching { supervisorScope { async(localHandler) { throw IndexOutOfBoundsException("23") }.await() } }.exceptionOrNull()!!.message)
+
+        with(CoroutineScope(SupervisorJob() + localHandler)) {
+            this.launch { throw IndexOutOfBoundsException("24") }.join()
+            assert(localMessage == "24")
+            assert(this.isActive)
+        }
+        with(CoroutineScope(SupervisorJob() + localHandler)) {
+            this.async { throw IndexOutOfBoundsException("25") }.join()
+            assert(localMessage != "25")
+            assert(this.isActive)
+        }
 
         launch { println("Will be printed") }.join()
         println("End runBlocking")
 
-        // 1) Если в теле корутины runBlocking, withContext, withTimeout, coroutineScope, supervisorScope: отменяется Job и бросается exception
-        // 2) Если у корутины launch родитель:
-        //    - launch(Job()) { throw RuntimeException() }              Ошибка уйдет в CEH или UEH и отменит Job
-        //    - launch(SupervisorJob()) { throw RuntimeException() }    Ошибка уйдет в CEH или UEH
-        //    - CoroutineScope(Job())                                   Ошибка уйдет в CEH или UEH и отменит Job
-        //    - CoroutineScope(SupervisorJob())                         Ошибка уйдет в CEH или UEH
-        //    - runBlocking, withContext, withTimeout, coroutineScope   Сразу отменяется Job и бросается exception
-        //    - launch                                                  Сразу распространяется exception и отменяется Job
-        //    - async                                                   Сразу распространяется exception и отменяется Job
-        //    - supervisorScope                                         Ошибка уйдет в CEH или UEH
-
-        // 3) Если у корутины async родитель:
-        //    - async(Job()) { throw RuntimeException() }               Бросит ошибку в await и отменит Job
-        //    - async(SupervisorJob()) { throw RuntimeException() }     Бросит ошибку в await
-        //    - CoroutineScope(Job())                                   Бросит ошибку в await и отменит Job
-        //    - CoroutineScope(SupervisorJob())                         Бросит ошибку в await
-        //    - runBlocking, withContext, withTimeout, coroutineScope   Сразу отменяется Job и бросается exception
-        //    - launch                                                  Сразу распространяется exception и отменяется Job
-        //    - async                                                   Сразу распространяется exception и отменяется Job
-        //    - supervisorScope                                         Бросит ошибку в await
-
         // Из выше указанного можно сделать следующие выводы
         // - CEH в async нужен только для проброса его для детей, а сам по себе в обработке исключений async не использует CEH
         // - Job в withContext нужен только для проброса его для детей и для отмены самого withContext, а сам по себе в обработке исключений withContext не смотрит на Job, а всегда выбрасывает исключение
+    }
+
+    fun assert(value: Boolean) {
+        if (!value) {
+            throw AssertionError()
+        }
     }
 }
