@@ -46,7 +46,7 @@ private class Main {
     }
 
     fun fun1() = runBlocking {
-        val job = GlobalScope.launch {
+        val job = GlobalScope.launch(handler) {
             println("Throwing exception from launch")
             throw IndexOutOfBoundsException()
         }
@@ -496,12 +496,12 @@ private class Main {
                     }
                 }
 
-//                runBlocking { // 6.52s - Если будет один runBlocking
+//                runBlocking { // 6.52s - Если раскомментить один runBlocking
 //                    delay(1000)
 //                    println("runBlocking")
 //                }
 
-//                coroutineScope { // 5.52s - Если будет один coroutineScope
+//                coroutineScope { // 5.52s - Если раскомментить один coroutineScope
 //                    delay(1000)
 //                    println("coroutineScope")
 //                }
@@ -586,20 +586,22 @@ private class Main {
         // CoroutineScope(Job()).launch { println(coroutineContext[Job]) } // JobImpl
         // CoroutineScope(SupervisorJob()).launch { println(coroutineContext[Job]) } // SupervisorJobImpl
 
-        // coroutineScope, withTimeout  | async                     | async(Job()) ***      | launch(Job()) ****     |
-        // withContext, runBlocking *   | launch **                 |                       |                        |
-        //                              |                           |                       |                        |
-        // Отменяется scope             | Распространяется ошибка   | Отменит async,        | Отменит scope и CEH|UEH|
-        // и бросится exception         | и отменит scope           | ошибку бросит в .await|                        |
-        //                              |                           |                       |                        |
+        // Если ошибка в дочерней корутине или в теле скоупа
+        //
+        // coroutineScope, withTimeout  | async                       | async(Job() |         | launch(Job()) |        |
+        // withContext, runBlocking *   | launch **                   | SupervisorJob()) ***  | SupervisorJob()) ****  |
+        //                              |                             |                       |                        |
+        // Отменит дочерние задачи      | Отменит дочерние задачи     | Отменит async,        | Отменит scope и CEH|UEH|
+        // и бросится exception         | и пробросит ошибку родителю | ошибку бросит в .await|                        |
+        //                              |                             |                       |                        |
 
         //        | CoroutineScope(Job()) ***** | supervisorScope
         //        |                             | CoroutineScope(SupervisorJob()) ******
         //        |                             |
         // launch | Отменит scope и CEH|UEH     | CEH|UEH
         // --------------------------------------------------------------------------------------
-        // async  | Отменит scope, ошибку       | Ошибку бросит в .await
-        //        | бросит в .await             |
+        // async  | Отменит дочерние задачи,    | Ошибку бросит в .await
+        //        | ошибку бросит в .await      |
         //        |                             |
 
         // *
