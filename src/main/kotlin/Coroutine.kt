@@ -2,7 +2,6 @@ import kotlinx.coroutines.*
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
-//fun main() = Main().fun1()
 //fun main() = Main().fun2()
 //fun main() = Main().fun3()
 //fun main() = Main().fun4()
@@ -24,19 +23,25 @@ import kotlin.time.measureTime
 //fun main() = Main().fun20()
 //fun main() = Main().fun21()
 //fun main() = Main().fun22()
-//fun main() = Main().fun23()
+fun main() = Main().fun23()
 //fun main() = Main().fun24()
-fun main() = Main().fun25()
+//fun main() = Main().fun25()
 
 private class Main {
-
     // CEH обрабатывается только в launch, в async он бесполезен
     // https://kotlinlang.org/docs/exception-handling.html#coroutineexceptionhandler
     private val handler = CoroutineExceptionHandler { _, throwable ->
         println("CoroutineExceptionHandler $throwable " + throwable.suppressed.contentToString())
     }
 
-    private fun println(value: Any?) = kotlin.io.println(Thread.currentThread().toString() + " " + value)
+    private fun println(value: Any?) =
+        kotlin.io.println(Thread.currentThread().toString() + " " + value)
+
+    fun assert(value: Boolean) {
+        if (!value) {
+            throw AssertionError()
+        }
+    }
 
     init {
         Thread.currentThread().uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { _, throwable ->
@@ -45,29 +50,11 @@ private class Main {
         }
     }
 
-    fun fun1() = runBlocking {
-        val job = GlobalScope.launch(handler) {
-            println("Throwing exception from launch")
-            throw IndexOutOfBoundsException()
-        }
-        job.join()
-        println("Joined failed job")
-        val deferred = GlobalScope.async {
-            println("Throwing exception from async")
-            throw ArithmeticException()
-        }
-        try {
-            deferred.await()
-            println("Not show")
-        } catch (e: ArithmeticException) {
-            println("Caught ArithmeticException")
-        }
-    }
-
     fun fun2() = runBlocking {
         val job = GlobalScope.launch(handler) { throw AssertionError() } // Напишет в handler
         println("After launch")
-        val deferred = GlobalScope.async(handler) { throw ArithmeticException() } // Не напишет в handler
+        val deferred =
+            GlobalScope.async(handler) { throw ArithmeticException() } // Не напишет в handler
         println("After defered")
         joinAll(job, deferred)
         println("After joinAll")
@@ -77,50 +64,51 @@ private class Main {
 
     fun fun3() = runBlocking {
         val job = launch {
-            val child = launch {
-                try {
-                    delay(Long.MAX_VALUE)
-                } finally {
-                    println("Child is cancelled")
-                }
+            try {
+                delay(Long.MAX_VALUE)
+            } finally {
+                println("Child is cancelled")
             }
-            yield()
-            println("Cancelling child")
-            child.cancel()
-            println("Join child")
-            child.join()
-            println("Before yield after cancel")
-            yield()
-            println("Parent is not cancelled")
         }
+        yield()
+        println("Cancelling child")
+        job.cancel()
+        println("Join child")
         job.join()
+        println("Parent is not cancelled")
     }
 
     fun fun4() = runBlocking {
         // Код, который отработает когда отменят корутину
-        GlobalScope.launch(handler) {
-            launch {
-                try {
-                    delay(Long.MAX_VALUE)
-                } finally {
-                    withContext(NonCancellable) {
-                        println("Children are cancelled, but exception is not handled until all children terminate")
-                        delay(100)
-                        println("The first child finished its non cancellable block")
-                    }
+        launch {
+            try {
+                delay(Long.MAX_VALUE)
+            } finally {
+                withContext(NonCancellable) {
+                    println("Children are cancelled, but exception is not handled until all children terminate")
+                    delay(100)
+                    println("The first child finished its non cancellable block")
                 }
             }
-            launch {
-                delay(10)
-                println("Second child throws an exception")
-                throw ArithmeticException()
-            }
-        }.join()
+        }
+        launch {
+            delay(10)
+            println("Second child throws an exception")
+            throw ArithmeticException()
+        }
+        yield()
+        println("End")
     }
 
     fun fun5() = runBlocking {
+        val localHandler = CoroutineExceptionHandler { _, throwable ->
+            assert(throwable is IllegalAccessError)
+            assert(throwable.suppressed.size == 2)
+            assert(throwable.suppressed[0] is ArithmeticException)
+            assert(throwable.suppressed[1] is IndexOutOfBoundsException)
+        }
         // Показывается что собираются все exception которые бросались после того как отменилась корутина
-        val job = GlobalScope.launch(handler) {
+        launch(Job() + localHandler) {
             launch {
                 try {
                     delay(Long.MAX_VALUE)
@@ -140,9 +128,8 @@ private class Main {
                 throw IllegalAccessError()
             }
             delay(Long.MAX_VALUE)
-        }
-        job.join()
-        // CoroutineExceptionHandler java.lang.IllegalAccessError [java.lang.ArithmeticException, java.lang.IndexOutOfBoundsException]
+        }.join()
+        println("End")
     }
 
     fun fun6() = runBlocking {
@@ -292,10 +279,11 @@ private class Main {
         // Если переопределить SupervisorJob(), то скопу не получится убить из его корутин
         val scope = CoroutineScope(Job())
         val job = scope.launch(SupervisorJob()) { // Если не будет передана Job, то скоуп умрет
-            val first = launch(handler) { // Этот handle не будет использоваться, нужно передать выше
-                println("1")
-                throw java.lang.RuntimeException()
-            }
+            val first =
+                launch(handler) { // Этот handle не будет использоваться, нужно передать выше
+                    println("1")
+                    throw java.lang.RuntimeException()
+                }
             val second = launch {
                 delay(50)
                 println("2")
@@ -324,7 +312,6 @@ private class Main {
             throw java.lang.RuntimeException()
         }
         println("End runBlocking")
-
     }
 
     fun fun15() = runBlocking {
@@ -337,7 +324,6 @@ private class Main {
             longDelayLaunch.invokeOnCompletion {
                 println("invokeOnCompletion $it " + it?.suppressed.contentToString()) // invokeOnCompletion null null
             }
-
             val launch = scope.launch(SupervisorJob()) {
                 launch { throw Exception("Failed coroutine 1") }
                 val longDelayLaunch1 = launch { delay(5000) }
@@ -413,7 +399,6 @@ private class Main {
             first.invokeOnCompletion {
                 println("invokeOnCompletion first $it " + it?.suppressed.contentToString())
             }
-
             val second = scope.launch(handler) {
                 launch { throw Exception("Failed coroutine") }
                 launch { delay(5000) }.invokeOnCompletion {
@@ -434,12 +419,11 @@ private class Main {
 
     fun fun19() = runBlocking {
         coroutineScope {
-            val launch = launch(Job() + handler) { // Если убрать Job(), то runBlocking бросит сразу exception
+            launch(Job() + handler) { // Если убрать Job(), то runBlocking бросит сразу exception
                 launch(handler) { // Этот handle не будет использоваться, нужно передать выше
                     throw RuntimeException()
                 }
-            }
-            joinAll(launch)
+            }.join()
         }
         launch { println("Will be printed") }.join()
         println("End runBlocking")
@@ -476,7 +460,6 @@ private class Main {
         }
         launch { println("8") }
         println("9")
-
         // 3, 1, 2, 4, 7, 5, 6, 9, 8
     }
 
@@ -488,24 +471,20 @@ private class Main {
         val limitedParallelism = Dispatchers.IO.limitedParallelism(1)
         runBlocking(limitedParallelism) {
             val measureTime = measureTime {
-
                 val launch = launch {
                     for (i in 100..110) {
                         println(i)
                         delay(500)
                     }
                 }
-
 //                runBlocking { // 6.52s - Если раскомментить один runBlocking
 //                    delay(1000)
 //                    println("runBlocking")
 //                }
-
 //                coroutineScope { // 5.52s - Если раскомментить один coroutineScope
 //                    delay(1000)
 //                    println("coroutineScope")
 //                }
-
                 launch.join()
                 launch { println("Will be printed") }.join()
                 println("End runBlocking")
@@ -525,7 +504,6 @@ private class Main {
         launch(handler + Job()) {// Если в launch передать Job(), то он не будет распространять ошибку
             throw RuntimeException()
         }.join()
-
         val blockingJob = coroutineContext.job
         println("blockingJob $blockingJob") // blockingJob BlockingCoroutine{Active}@4ca8195f
         val newJob = Job()
@@ -554,12 +532,10 @@ private class Main {
         } catch (throwable: Throwable) {
             println(throwable) // java.lang.IllegalStateException
         }
-
         // Судя по тому что newJob не отменена, значит что withContext, не пробрасывает отмену, а отменяет только свою job
         println(newJob.isCancelled) // false
         println(newJob.isActive)    // true
         println(newJob.isCompleted) // false
-
         launch { println("Will be printed") }.join()
         println("End runBlocking")
     }
@@ -681,11 +657,5 @@ private class Main {
         // Из выше указанного можно сделать следующие выводы
         // - CEH в async нужен только для проброса его для детей, а сам по себе в обработке исключений async не использует CEH
         // - Job в withContext нужен только для проброса его для детей и для отмены самого withContext, а сам по себе в обработке исключений withContext не смотрит на Job, а всегда выбрасывает исключение
-    }
-
-    fun assert(value: Boolean) {
-        if (!value) {
-            throw AssertionError()
-        }
     }
 }
