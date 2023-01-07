@@ -571,14 +571,14 @@ private class Main {
         // и бросится exception         | и пробросит ошибку родителю | ошибку бросит в .await|                        |
         //                              |                             |                       |                        |
 
-        //        | CoroutineScope(Job()) ***** | supervisorScope
-        //        |                             | CoroutineScope(SupervisorJob()) ******
-        //        |                             |
-        // launch | Отменит scope и CEH|UEH     | CEH|UEH
-        // --------------------------------------------------------------------------------------
-        // async  | Отменит дочерние задачи,    | Ошибку бросит в .await
-        //        | ошибку бросит в .await      |
-        //        |                             |
+        //        | CoroutineScope(Job()) *****                 | supervisorScope
+        //        |                                             | CoroutineScope(SupervisorJob()) ******
+        //        |                                             |
+        // launch |                 CEH|UEH                     | CEH|UEH
+        // -------| Отменит scope ---------------------------------------------------------------
+        // async  |                 ошибку бросит в .await      | Ошибку бросит в .await
+        //        |                                             |
+        //        |                                             |
 
         // *
         assert("1" == runCatching { coroutineScope { launch { throw IndexOutOfBoundsException("1") } } }.exceptionOrNull()!!.message)
