@@ -23,9 +23,9 @@ import kotlin.time.measureTime
 //fun main() = Main().fun20()
 //fun main() = Main().fun21()
 //fun main() = Main().fun22()
-fun main() = Main().fun23()
+//fun main() = Main().fun23()
 //fun main() = Main().fun24()
-//fun main() = Main().fun25()
+fun main() = Main().fun25()
 
 private class Main {
     // CEH обрабатывается только в launch, в async он бесполезен
@@ -258,7 +258,9 @@ private class Main {
                     throw AssertionError()
                 }
                 val deferred = async(handler) {
-                    throw ArithmeticException()
+                    supervisorScope {
+                        launch { throw AssertionError() }
+                    }
                 }
                 println("After defered")
                 joinAll(job, deferred)
@@ -589,6 +591,11 @@ private class Main {
         assert("1" == runCatching { withContext(coroutineContext) { async { throw IndexOutOfBoundsException("1") } } }.exceptionOrNull()!!.message)
         assert("1" == runCatching { runBlocking { launch { throw IndexOutOfBoundsException("1") } } }.exceptionOrNull()!!.message)
         assert("1" == runCatching { runBlocking { async { throw IndexOutOfBoundsException("1") } } }.exceptionOrNull()!!.message)
+
+        // CEH в этой ситуации игнорируется
+        assert("1" == runCatching {
+            coroutineScope { launch(handler) { throw IndexOutOfBoundsException("1") } }
+        }.exceptionOrNull()!!.message)
 
         // **
         assert("1" == runCatching { coroutineScope { launch { launch { throw IndexOutOfBoundsException("1") } } } }.exceptionOrNull()!!.message)
