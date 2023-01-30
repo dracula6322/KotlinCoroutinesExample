@@ -603,6 +603,9 @@ private class Main {
         assert("1" == runCatching { coroutineScope { async { launch { throw IndexOutOfBoundsException("1") } } } }.exceptionOrNull()!!.message)
         assert("1" == runCatching { coroutineScope { async { async { throw IndexOutOfBoundsException("1") } } } }.exceptionOrNull()!!.message)
 
+        // CEH в этой ситуации игнорируется
+        assert("1" == runCatching { coroutineScope { launch(handler) { launch(handler) { throw IndexOutOfBoundsException("1") } } } }.exceptionOrNull()!!.message)
+
         // ***
         assert(null == runCatching { coroutineScope { async(Job()) { launch { throw IndexOutOfBoundsException("1") } } } }.exceptionOrNull())
         assert("1" == runCatching { coroutineScope { async(Job()) { launch { throw IndexOutOfBoundsException("1") } }.await() } }.exceptionOrNull()!!.message)
