@@ -7,10 +7,6 @@ import kotlinx.coroutines.flow.*
 
 // terminal operation: collect, launch
 
-class Flow {
-}
-
-
 fun main() = runBlocking {
 //    fun1()
 //    fun2()
