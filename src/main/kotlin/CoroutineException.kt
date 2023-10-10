@@ -35,8 +35,6 @@ internal class CoroutineMainExceptionMain {
         println("CoroutineExceptionHandler $throwable " + throwable.suppressed.contentToString())
     }
 
-    fun CoroutineContext.name(): String = this[CoroutineName]?.name ?: "null"
-
     private fun println(value: Any?) =
         kotlin.io.println(Thread.currentThread().toString() + " " + value)
 
@@ -348,63 +346,6 @@ internal class CoroutineMainExceptionMain {
         println("End runBlocking")
     }
 
-    fun fun20() = runBlocking(CoroutineName("runBlocking")) {
-        // https://youtu.be/w0kfnydnFWI?si=-WVlIdztk1snxEM2&t=1506
-
-        // Так не получится предотвратить отмену второй корутины,
-        // Т.к. у launch1 и launch2 в родителях стоит launch, а нет Job(), который является JobImpl,
-        // а launch который является StandaloneCoroutine
-        val coroutineScope = CoroutineScope(SupervisorJob())
-        coroutineScope.launch(Job() + CoroutineName("rootLaunch")) {
-            // [CoroutineName(rootLaunch), StandaloneCoroutine{Active}@252aaf0e, Dispatchers.Default]
-            println(coroutineContext.toString())
-            // JobImpl null
-            println(coroutineContext.job.parent?.toString() + coroutineContext.job.parent?.name())
-            launch(CoroutineName("launch1")) {
-                // [CoroutineName(launch1), StandaloneCoroutine{Active}@27ddd392, Dispatchers.Default]
-                println(coroutineContext.toString())
-                val parentJob = coroutineContext.job.parent
-                // StandaloneCoroutine null
-                println(parentJob?.toString() + parentJob?.name())
-                delay(1000)
-                throw error("crash")
-            }
-            launch(CoroutineName("launch2")) {
-                // [CoroutineName(launch1), StandaloneCoroutine{Active}@27ddd392, Dispatchers.Default]
-                println(coroutineContext.toString())
-                val parentJob = coroutineContext.job.parent
-                // StandaloneCoroutine null
-                println(parentJob?.toString() + parentJob?.name())
-                delay(2000)
-                println("Not show")
-            }
-        }.join()
-
-
-        // Вот тут не будет отмены, т.к. тут напрямую родилтель указан
-        val job = SupervisorJob()
-        println(job) // SupervisorJobImpl
-        launch(job + CoroutineName("launch1")) {
-            // [CoroutineName(launch1), StandaloneCoroutine{Active}@27ddd392, BlockingEventLoop@19e1023e]
-            println(coroutineContext.toString())
-            val parentJob = coroutineContext.job.parent
-            // SupervisorJobImpl null
-            println(parentJob?.toString() + parentJob?.name())
-            delay(1000)
-            throw Error("Some error")
-        }
-        launch(CoroutineName("launch2") + job) {
-            // [CoroutineName(launch2), StandaloneCoroutine{Active}@27ddd392, BlockingEventLoop@19e1023e]
-            println(coroutineContext.toString())
-            val parentJob = coroutineContext.job.parent
-            // SupervisorJobImpl null
-            println(parentJob?.toString() + parentJob?.name())
-            delay(2000)
-            println("Will show")
-        }
-        job.join() // Зависнет пока кто-то не отменит job
-        println("(Not show)")
-    }
 
     fun fun24() = runBlocking {
         // Пример есть ли разница между launch() {}.join и withContext

@@ -1,62 +1,24 @@
+@file:Suppress("DeferredResultUnused")
 @file:OptIn(ExperimentalCoroutinesApi::class)
 
 import kotlinx.coroutines.*
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.measureTime
 
-fun main() = CoroutineMain().fun17()
-//fun main() = Main().fun3()
-//fun main() = Main().fun4()
-//fun main() = Main().fun5()
-//fun main() = Main().fun6()
-//fun main() = Main().fun7()
-//fun main() = Main().fun8()
-//fun main() = Main().fun9()
-//fun main() = Main().fun10()
-//fun main() = Main().fun11()
-//fun main() = Main().fun12()
-//fun main() = Main().fun13()
-//fun main() = Main().fun14()
-//fun main() = Main().fun15()
-//fun main() = Main().fun16()
-//fun main() = Main().fun17()
-//fun main() = Main().fun18()
-//fun main() = Main().fun19()
-//fun main() = Main().fun20()
-//fun main() = Main().fun21()
-//fun main() = Main().fun22()
-//fun main() = Main().fun23()
-//fun main() = Main().fun24()
-//fun main() = Main().fun25()
+//fun main() = CoroutineMain().fun1()
+//fun main() = CoroutineMain().fun2()
+//fun main() = CoroutineMain().fun3()
+fun main() = CoroutineMain().fun4()
+//fun main() = CoroutineMain().fun5()
+//fun main() = CoroutineMain().fun6()
 
 internal class CoroutineMain {
-    // CEH обрабатывается только в launch, в async нужен только для проброса его для детей
-    // https://kotlinlang.org/docs/exception-handling.html#coroutineexceptionhandler
-    private val handler = CoroutineExceptionHandler { _, throwable ->
-        println("CoroutineExceptionHandler $throwable " + throwable.suppressed.contentToString())
-    }
-
-    fun CoroutineContext.name(): String = this[CoroutineName]?.name ?: "null"
-
     private fun println(value: Any?) =
         kotlin.io.println(Thread.currentThread().toString() + " " + value)
 
-    fun assert(value: Boolean) {
-        if (!value) {
-            throw AssertionError()
-        }
-    }
+    fun CoroutineContext.name(): String = this[CoroutineName]?.name ?: "null"
 
-    init {
-        Thread.currentThread().uncaughtExceptionHandler =
-            Thread.UncaughtExceptionHandler { _, throwable ->
-                println("!!!!!!!! Android Crash !!!!!!!!")
-                println(throwable.toString() + " " + throwable.suppressed.contentToString())
-            }
-    }
-
-
-    fun fun3() = runBlocking {
+    fun fun1() = runBlocking {
         val job = launch {
             try {
                 delay(Long.MAX_VALUE)
@@ -72,7 +34,7 @@ internal class CoroutineMain {
         println("Parent is not cancelled")
     }
 
-    fun fun4() = runBlocking {
+    fun fun2() = runBlocking {
         // Код, который отработает когда отменят корутину
         launch {
             try {
@@ -94,56 +56,88 @@ internal class CoroutineMain {
         println("End")
     }
 
-    fun fun16(): Unit = runBlocking {
-        // Еще один пример из книги в котором говорится про SupervisorJob в launch, стр. 119
-        // Для того что бы First и Second не отменяли друг друга можно им передать SupervisorJob
-        val supervisorJob = SupervisorJob() // Job c parent null
-        launch(supervisorJob) { // Job c parent supervisorJob
-            launch(CoroutineName("First")) { // Job c parent StandaloneCoroutine
+    fun fun3() = runBlocking(CoroutineName("runBlocking")) {
+        // https://youtu.be/w0kfnydnFWI?si=-WVlIdztk1snxEM2&t=1506
+
+        // Так не получится предотвратить отмену второй корутины,
+        // Т.к. у launch1 и launch2 в родителях стоит launch, а нет Job(), который является JobImpl,
+        // а launch который является StandaloneCoroutine
+        val coroutineScope = CoroutineScope(SupervisorJob())
+        coroutineScope.launch(Job() + CoroutineName("rootLaunch")) {
+            // [CoroutineName(rootLaunch), StandaloneCoroutine{Active}@252aaf0e, Dispatchers.Default]
+            println(coroutineContext.toString())
+            // JobImpl null
+            println(coroutineContext.job.parent?.toString() + coroutineContext.job.parent?.name())
+            launch(CoroutineName("launch1")) {
+                // [CoroutineName(launch1), StandaloneCoroutine{Active}@27ddd392, Dispatchers.Default]
+                println(coroutineContext.toString())
+                val parentJob = coroutineContext.job.parent
+                // StandaloneCoroutine null
+                println(parentJob?.toString() + parentJob?.name())
                 delay(1000)
-                throw Error("Some error")
+                error("crash")
             }
-            launch(CoroutineName("Second")) { // Job c parent StandaloneCoroutine
+            launch(CoroutineName("launch2")) {
+                // [CoroutineName(launch1), StandaloneCoroutine{Active}@27ddd392, Dispatchers.Default]
+                println(coroutineContext.toString())
+                val parentJob = coroutineContext.job.parent
+                // StandaloneCoroutine null
+                println(parentJob?.toString() + parentJob?.name())
                 delay(2000)
-                println("Will not be printed")
+                println("Not show")
             }
+        }.join()
+
+
+        // Вот тут не будет отмены, т.к. тут напрямую родилтель указан
+        val job = SupervisorJob()
+        println(job) // SupervisorJobImpl
+        launch(job + CoroutineName("launch1")) {
+            // [CoroutineName(launch1), StandaloneCoroutine{Active}@27ddd392, BlockingEventLoop@19e1023e]
+            println(coroutineContext.toString())
+            val parentJob = coroutineContext.job.parent
+            // SupervisorJobImpl null
+            println(parentJob?.toString() + parentJob?.name())
+            delay(1000)
+            throw Error("Some error")
         }
-        launch {
-            delay(3000)
-            println("Will be printed")
+        launch(CoroutineName("launch2") + job) {
+            // [CoroutineName(launch2), StandaloneCoroutine{Active}@27ddd392, BlockingEventLoop@19e1023e]
+            println(coroutineContext.toString())
+            val parentJob = coroutineContext.job.parent
+            // SupervisorJobImpl null
+            println(parentJob?.toString() + parentJob?.name())
+            delay(2000)
+            println("Will show")
         }
-        delay(5000)
-        println("End runBlocking")
+        job.join() // Зависнет пока кто-то не отменит job
+        println("(Not show)")
     }
 
-    fun fun17(): Unit = runBlocking {
-        // supervisorScope может бросить exception если его отменить и в каком порядке происходит отмена
+    fun fun4(): Unit = runBlocking {
+        // В каком порядке происходит отмена
         try {
             supervisorScope {
                 launch {
-                    launch {
-                        delay(1000)
-                        println("First launch")
-                    }.invokeOnCompletion { println("First launch end with $it") }
-                    launch {
-                        delay(2000)
-                        println("Second launch")
-                    }.invokeOnCompletion { println("Second launch end with $it") }
+                    launch { delay(11000) }.invokeOnCompletion { println("First launch end with $it") }
+                    launch { delay(12000) }.invokeOnCompletion { println("Second launch end with $it") }
                 }
-                launch(CoroutineName("Main launch")) {
-                    delay(3000)
-                    println("Main launch")
-                }.invokeOnCompletion { println("Main launch end after First and Second  with $it") }
+                launch { delay(13000) }.invokeOnCompletion { println("Main launch end with $it") }
                 yield()
                 cancel()
             }
-        } catch (exception: Exception) { // JobCancellationException
-            println("Exception from scope $exception")
+        } catch (throwable: Throwable) {
+            println("Exception from scope $throwable")
         }
         println("End runBlocking")
+        // First launch end with kotlinx.coroutines.JobCancellationException
+        // Second launch end with kotlinx.coroutines.JobCancellationException
+        // Main launch end with kotlinx.coroutines.JobCancellationException
+        // Exception from scope kotlinx.coroutines.JobCancellationException
+        // End runBlocking
     }
 
-    fun fun21() = runBlocking {
+    fun fun5() = runBlocking {
         // В какой очереди выполняются корутины
         // При дефолтном значении CoroutineStart.DEFAULT корутина будет выполняться когда дойдет до первой suspend фукнкции
         // При использовании CoroutineStart.UNDISPATCHED корутина выполняется сразу
@@ -162,7 +156,7 @@ internal class CoroutineMain {
         // 3, 1, 2, 4, 7, 5, 6, 9, 8
     }
 
-    fun fun22() {
+    fun fun6() {
         // Показывает в чем разница между runBlocking и coroutineScope в плане блокирования потока выполнения
         // Что бы был результат нужно раскоментить нужный участок кода
         // https://stackoverflow.com/a/53536713
@@ -184,18 +178,14 @@ internal class CoroutineMain {
 //                    println("coroutineScope")
 //                }
                 launch.join()
-                launch { println("Will be printed") }.join()
-                println("End runBlocking")
             }
             println(measureTime)
         }
     }
 
-    fun fun23() = runBlocking {
+    fun fun7() = runBlocking {
 //         async(Dispatchers.Main) { "42" }.await()
 //         Строку выше предлагается заменить на такую
 //         withContext(Dispatchers.Main) { "42" }
     }
-
-
 }
