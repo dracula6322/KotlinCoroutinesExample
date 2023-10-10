@@ -1,6 +1,53 @@
+@OptIn(ExperimentalStdlibApi::class)
 fun main() {
 
     // val wrongSymbol: Char = '😉' // To many characters
+
+    with("🤦🏿‍♂️") {
+        // https://apps.timwhitlock.info/unicode/inspect?s=%F0%9F%A4%A6%F0%9F%8F%BF%E2%80%8D%E2%99%82%EF%B8%8F
+        check(length == 7)
+
+        check(String(toByteArray().take(4).toByteArray()) == "🤦")
+        check(String(toByteArray().take(8).toByteArray()) == "🤦🏿")
+        check(String(toByteArray().take(14).toByteArray()) == "🤦🏿‍♂")
+        check(
+            toByteArray().drop(0).take(4) == listOf(
+                0xf0.toByte(),
+                0x9f.toByte(),
+                0xa4.toByte(),
+                0xa6.toByte()
+            )
+        )
+        check(
+            toByteArray().drop(4).take(4) == listOf(
+                0xf0.toByte(),
+                0x9f.toByte(),
+                0x8f.toByte(),
+                0xbf.toByte()
+            )
+        )
+        check(
+            toByteArray().drop(8).take(3) == listOf(
+                0xe2.toByte(),
+                0x80.toByte(),
+                0x8d.toByte(),
+            )
+        )
+        check(
+            toByteArray().drop(11).take(3) == listOf(
+                0xe2.toByte(),
+                0x99.toByte(),
+                0x82.toByte(),
+            )
+        )
+        check(
+            toByteArray().drop(14).take(3) == listOf(
+                0xef.toByte(),
+                0xb8.toByte(),
+                0x8f.toByte(),
+            )
+        )
+    }
 
     with(Character.toChars(665)) {// ʙ
         // https://apps.timwhitlock.info/unicode/inspect/hex/0299
@@ -16,7 +63,7 @@ fun main() {
         check(this[0].code == 0xd83d)
         check(this[1].code == 0xde05)
 
-        with(String(this)){
+        with(String(this)) {
             check(length == 2)
             println()
 
