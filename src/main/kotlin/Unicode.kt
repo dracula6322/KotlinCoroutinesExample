@@ -7,11 +7,11 @@ fun main() {
         // https://apps.timwhitlock.info/unicode/inspect?s=%F0%9F%A4%A6%F0%9F%8F%BF%E2%80%8D%E2%99%82%EF%B8%8F
         check(length == 7)
 
-        check(String(toByteArray().take(4).toByteArray()) == "🤦")
-        check(String(toByteArray().take(8).toByteArray()) == "🤦🏿")
-        check(String(toByteArray().take(14).toByteArray()) == "🤦🏿‍♂")
+        check(String(toByteArray(Charsets.UTF_8).take(4).toByteArray()) == "🤦")
+        check(String(toByteArray(Charsets.UTF_8).take(8).toByteArray()) == "🤦🏿")
+        check(String(toByteArray(Charsets.UTF_8).take(14).toByteArray()) == "🤦🏿‍♂")
         check(
-            toByteArray().drop(0).take(4) == listOf(
+            toByteArray(Charsets.UTF_8).drop(0).take(4) == listOf(
                 0xf0.toByte(),
                 0x9f.toByte(),
                 0xa4.toByte(),
@@ -19,7 +19,7 @@ fun main() {
             )
         )
         check(
-            toByteArray().drop(4).take(4) == listOf(
+            toByteArray(Charsets.UTF_8).drop(4).take(4) == listOf(
                 0xf0.toByte(),
                 0x9f.toByte(),
                 0x8f.toByte(),
@@ -27,21 +27,21 @@ fun main() {
             )
         )
         check(
-            toByteArray().drop(8).take(3) == listOf(
+            toByteArray(Charsets.UTF_8).drop(8).take(3) == listOf(
                 0xe2.toByte(),
                 0x80.toByte(),
                 0x8d.toByte(),
             )
         )
         check(
-            toByteArray().drop(11).take(3) == listOf(
+            toByteArray(Charsets.UTF_8).drop(11).take(3) == listOf(
                 0xe2.toByte(),
                 0x99.toByte(),
                 0x82.toByte(),
             )
         )
         check(
-            toByteArray().drop(14).take(3) == listOf(
+            toByteArray(Charsets.UTF_8).drop(14).take(3) == listOf(
                 0xef.toByte(),
                 0xb8.toByte(),
                 0x8f.toByte(),
