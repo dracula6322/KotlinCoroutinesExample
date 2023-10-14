@@ -6,6 +6,7 @@ fun main() {
     // https://apps.timwhitlock.info/unicode/inspect?s=%F0%9F%A4%A6%F0%9F%8F%BF%E2%80%8D%E2%99%82%EF%B8%8F
     // https://www.youtube.com/watch?v=SZFe3m1DV1A
     // https://py2jdbc.readthedocs.io/en/latest/mutf8.html
+    // https://source.android.com/docs/core/runtime/dex-format#mutf-8
 
     // val wrongSymbol: Char = '😉' // To many characters
 
