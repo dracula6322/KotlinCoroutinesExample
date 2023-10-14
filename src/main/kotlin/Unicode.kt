@@ -1,10 +1,15 @@
+import java.io.ByteArrayInputStream
+
 @OptIn(ExperimentalStdlibApi::class)
 fun main() {
+
+    // https://apps.timwhitlock.info/unicode/inspect?s=%F0%9F%A4%A6%F0%9F%8F%BF%E2%80%8D%E2%99%82%EF%B8%8F
+    // https://www.youtube.com/watch?v=SZFe3m1DV1A
+    // https://py2jdbc.readthedocs.io/en/latest/mutf8.html
 
     // val wrongSymbol: Char = '😉' // To many characters
 
     with("🤦🏿‍♂️") {
-        // https://apps.timwhitlock.info/unicode/inspect?s=%F0%9F%A4%A6%F0%9F%8F%BF%E2%80%8D%E2%99%82%EF%B8%8F
         check(length == 7)
 
         check(String(toByteArray(Charsets.UTF_8).take(4).toByteArray()) == "🤦")
@@ -65,7 +70,6 @@ fun main() {
 
         with(String(this)) {
             check(length == 2)
-            println()
 
             check(toByteArray(Charsets.UTF_8)[0].toUByte() == 0xf0.toUByte())
             check(toByteArray(Charsets.UTF_8)[1].toUByte() == 0x9f.toUByte())
@@ -96,4 +100,54 @@ fun main() {
         check(code == 9464) // 9464 = 75000 - 65536
     }
 
+    // Mutf8
+    with(0.toChar().toString()) {
+        val bytes = Mutf8.encode(this)
+        check(bytes.size == 2)
+        check(bytes[0].toUByte() == 0xc0.toUByte())
+        check(bytes[1].toUByte() == 0x80.toUByte())
+        check(!this.toByteArray(Charsets.UTF_8).contentEquals(bytes))
+        val byteArrayInputStream = ByteArrayInputStream(bytes + 0x00)
+        check(Mutf8.decode(byteArrayInputStream, CharArray(byteArrayInputStream.available())) == this)
+    }
+    with("a") {
+        val bytes = Mutf8.encode(this)
+        check(bytes.size == 1)
+        check(bytes[0].toUByte() == 0x61.toUByte())
+        check(this.toByteArray(Charsets.UTF_8).contentEquals(bytes))
+        val byteArrayInputStream = ByteArrayInputStream(bytes + 0x00)
+        check(Mutf8.decode(byteArrayInputStream, CharArray(byteArrayInputStream.available())) == this)
+    }
+    with("Ĭ") {
+        val bytes = Mutf8.encode(this)
+        check(bytes.size == 2)
+        check(bytes[0].toUByte() == 0xc4.toUByte())
+        check(bytes[1].toUByte() == 0xac.toUByte())
+        check(this.toByteArray(Charsets.UTF_8).contentEquals(bytes))
+        val byteArrayInputStream = ByteArrayInputStream(bytes + 0x00)
+        check(Mutf8.decode(byteArrayInputStream, CharArray(byteArrayInputStream.available())) == this)
+    }
+    with("€") {
+        val bytes = Mutf8.encode(this)
+        check(bytes.size == 3)
+        check(bytes[0].toUByte() == 0xe2.toUByte())
+        check(bytes[1].toUByte() == 0x82.toUByte())
+        check(bytes[2].toUByte() == 0xac.toUByte())
+        check(this.toByteArray(Charsets.UTF_8).contentEquals(bytes))
+        val byteArrayInputStream = ByteArrayInputStream(bytes + 0x00)
+        check(Mutf8.decode(byteArrayInputStream, CharArray(byteArrayInputStream.available())) == this)
+    }
+    with("𐍈") {
+        val bytes = Mutf8.encode(this)
+        check(bytes.size == 6)
+        check(bytes[0].toUByte() == 0xed.toUByte())
+        check(bytes[1].toUByte() == 0xa0.toUByte())
+        check(bytes[2].toUByte() == 0x80.toUByte())
+        check(bytes[3].toUByte() == 0xed.toUByte())
+        check(bytes[4].toUByte() == 0xbd.toUByte())
+        check(bytes[5].toUByte() == 0x88.toUByte())
+        check(!this.toByteArray(Charsets.UTF_8).contentEquals(bytes))
+        val byteArrayInputStream = ByteArrayInputStream(bytes + 0x00)
+        check(Mutf8.decode(byteArrayInputStream, CharArray(byteArrayInputStream.available())) == this)
+    }
 }
